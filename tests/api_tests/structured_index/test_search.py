@@ -3,16 +3,14 @@ import uuid
 from unittest import mock
 
 import marqo
-import pytest
 from marqo import enums
 from marqo.client import Client
-from marqo.errors import MarqoWebError
 from marqo.enums import SearchMethods
+from marqo.errors import MarqoWebError
 
 from tests.marqo_test import MarqoTestCase
 
 
-@pytest.mark.fixed
 class TestStructuredSearch(MarqoTestCase):
     text_index_name = "api_test_structured_index_text" + str(uuid.uuid4()).replace('-', '')
     image_index_name = "api_test_structured_image_index_image" + str(uuid.uuid4()).replace('-', '')

@@ -1,7 +1,6 @@
 import copy
-from unittest import mock
 import uuid
-import pytest
+from unittest import mock
 
 from marqo.client import Client
 from marqo.errors import MarqoWebError
@@ -9,7 +8,6 @@ from marqo.errors import MarqoWebError
 from tests.marqo_test import MarqoTestCase
 
 
-@pytest.mark.fixed
 class TestStructuredAddDocuments(MarqoTestCase):
     text_index_name = "add_doc_api_test_structured_index" + str(uuid.uuid4()).replace('-', '')
     image_index_name = "add_doc_api_test_structured_image_index" + str(uuid.uuid4()).replace('-', '')
@@ -319,5 +317,3 @@ class TestStructuredAddDocuments(MarqoTestCase):
         assert doc_res["custom_vector_field_1"] == "custom vector text"
         assert doc_res['_tensor_facets'][0]["custom_vector_field_1"] == "custom vector text"
         assert doc_res['_tensor_facets'][0]['_embedding'] == [1.0 for _ in range(DEFAULT_DIMENSIONS)]
-
-

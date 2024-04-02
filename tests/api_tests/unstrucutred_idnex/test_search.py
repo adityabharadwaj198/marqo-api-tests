@@ -3,16 +3,13 @@ import uuid
 from unittest import mock
 
 import marqo
-import pytest
 from marqo import enums
 from marqo.client import Client
 from marqo.enums import SearchMethods
-from marqo.errors import MarqoWebError
 
 from tests.marqo_test import MarqoTestCase
 
 
-@pytest.mark.fixed
 class TestUnstructuredSearch(MarqoTestCase):
 
     @classmethod
