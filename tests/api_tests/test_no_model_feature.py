@@ -148,8 +148,12 @@ class TestNoModelFeature(MarqoTestCase):
 
     def test_no_model_work_with_context_vectors_in_search(self):
         """Test to ensure that context vectors work with no_model by setting query as None"""
+        # We need to normalise the vectors as the default distance metric is prenormalized-angular
+        custom_vector = np.random.randn(self.DIMENSION)
+        custom_vector = (np.array(custom_vector) / np.linalg.norm(custom_vector)).tolist()
 
-        custom_vector = [0.655 for _ in range(self.DIMENSION)]
+        random_vector = np.random.randn(self.DIMENSION)
+        random_vector = (random_vector / np.linalg.norm(random_vector)).tolist()
 
         docs = [
             {
@@ -157,7 +161,7 @@ class TestNoModelFeature(MarqoTestCase):
                 "custom_field_1":
                     {
                         "content": "test custom field content_1",
-                        "vector": np.random.randn(self.DIMENSION).tolist()
+                        "vector": random_vector
                     }
             },
             {
