@@ -1,13 +1,10 @@
 import uuid
-from unittest.mock import patch
 
-import pytest
-
-from tests.marqo_test import MarqoTestCase
 import numpy as np
 
+from tests.marqo_test import MarqoTestCase
 
-@pytest.mark.fixed
+
 class TestEmbed(MarqoTestCase):
     @classmethod
     def setUpClass(cls) -> None:
