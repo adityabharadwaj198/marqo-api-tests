@@ -24,11 +24,17 @@ class TestUnstructuredSearch(MarqoTestCase):
         cls.client = Client(**cls.client_settings)
 
         cls.text_index_name = "api_test_unstructured_index" + str(uuid.uuid4()).replace('-', '')
+        cls.text_index_2_name = "api_test_unstructured_index_2_" + str(uuid.uuid4()).replace('-', '')
         cls.image_index_name = "api_test_unstructured_image_index" + str(uuid.uuid4()).replace('-', '')
 
         cls.create_indexes([
             {
                 "indexName": cls.text_index_name,
+                "type": "unstructured",
+                "model": "sentence-transformers/all-MiniLM-L6-v2",
+            },
+            {
+                "indexName": cls.text_index_2_name,
                 "type": "unstructured",
                 "model": "sentence-transformers/all-MiniLM-L6-v2",
             },
@@ -39,7 +45,7 @@ class TestUnstructuredSearch(MarqoTestCase):
             }
         ])
 
-        cls.indexes_to_delete = [cls.text_index_name, cls.image_index_name]
+        cls.indexes_to_delete = [cls.text_index_name, cls.text_index_2_name, cls.image_index_name]
 
     def tearDown(self):
         if self.indexes_to_delete:
@@ -63,18 +69,18 @@ class TestUnstructuredSearch(MarqoTestCase):
         """Searches an index of a single doc.
         Checks the basic functionality and response structure"""
         d1 = {
-            "Title": "This is a title about some doc. ",
-            "Description": """The Guardian is a British daily newspaper. It was founded in 1821 as The Manchester Guardian, and changed its name in 1959.[5] Along with its sister papers The Observer and The Guardian Weekly, The Guardian is part of the Guardian Media Group, owned by the Scott Trust.[6] The trust was created in 1936 to "secure the financial and editorial independence of The Guardian in perpetuity and to safeguard the journalistic freedom and liberal values of The Guardian free from commercial or political interference".[7] The trust was converted into a limited company in 2008, with a constitution written so as to maintain for The Guardian the same protections as were built into the structure of the Scott Trust by its creators. Profits are reinvested in journalism rather than distributed to owners or shareholders.[7] It is considered a newspaper of record in the UK.[8][9]
+            "title": "This is a title about some doc. ",
+            "description": """The Guardian is a British daily newspaper. It was founded in 1821 as The Manchester Guardian, and changed its name in 1959.[5] Along with its sister papers The Observer and The Guardian Weekly, The Guardian is part of the Guardian Media Group, owned by the Scott Trust.[6] The trust was created in 1936 to "secure the financial and editorial independence of The Guardian in perpetuity and to safeguard the journalistic freedom and liberal values of The Guardian free from commercial or political interference".[7] The trust was converted into a limited company in 2008, with a constitution written so as to maintain for The Guardian the same protections as were built into the structure of the Scott Trust by its creators. Profits are reinvested in journalism rather than distributed to owners or shareholders.[7] It is considered a newspaper of record in the UK.[8][9]
             The editor-in-chief Katharine Viner succeeded Alan Rusbridger in 2015.[10][11] Since 2018, the paper's main newsprint sections have been published in tabloid format. As of July 2021, its print edition had a daily circulation of 105,134.[4] The newspaper has an online edition, TheGuardian.com, as well as two international websites, Guardian Australia (founded in 2013) and Guardian US (founded in 2011). The paper's readership is generally on the mainstream left of British political opinion,[12][13][14][15] and the term "Guardian reader" is used to imply a stereotype of liberal, left-wing or "politically correct" views.[3] Frequent typographical errors during the age of manual typesetting led Private Eye magazine to dub the paper the "Grauniad" in the 1960s, a nickname still used occasionally by the editors for self-mockery.[16]
             """
         }
-        add_doc_res = self.client.index(self.text_index_name).add_documents([d1], tensor_fields=["Title", "Description"])
+        add_doc_res = self.client.index(self.text_index_name).add_documents([d1], tensor_fields=["title", "description"])
         search_res = self.client.index(self.text_index_name).search(
             "title about some doc")
         assert len(search_res["hits"]) == 1
         assert self.strip_marqo_fields(search_res["hits"][0]) == d1
         assert len(search_res["hits"][0]["_highlights"]) > 0
-        assert ("Title" in search_res["hits"][0]["_highlights"][0]) or ("Description" in search_res["hits"][0]["_highlights"][0])
+        assert ("title" in search_res["hits"][0]["_highlights"][0]) or ("description" in search_res["hits"][0]["_highlights"][0])
 
     def test_search_empty_index(self):
         search_res = self.client.index(self.text_index_name).search(
@@ -366,3 +372,82 @@ class TestUnstructuredSearch(MarqoTestCase):
                     self.assertEqual(len(search_res["hits"]), len(expected),
                                      f"Failed count check for filter '{filter_string}'.")
                     self.assertEqual(actual_ids, set(expected), f"Failed ID match for filter '{filter_string}'")
+
+    def test_searchable_attributes(self):
+        docs_batch_1 = [
+            {
+                "title": "Cool Document 1",
+                "content": "some extra info",
+                "_id": "1"
+            },
+            {
+                "title": "Just Your Average Doc",
+                "content": "this is a solid doc",
+                "_id": "2"
+            }
+        ]
+        self.client.index(self.text_index_2_name).add_documents(docs_batch_1, tensor_fields=["title", "content"])
+
+        docs_batch_2 = [
+            {
+                "desc": "Cool Document 2",
+                "content": "some extra info",
+                "_id": "3"
+            },
+            {
+                "desc": "Just Your Average Doc 2",
+                "content": "this is a solid doc",
+                "_id": "4"
+            }
+        ]
+        self.client.index(self.text_index_2_name).add_documents(docs_batch_2, tensor_fields=["desc", "content"])
+
+        # Tensor search for title fields should only return the first 2 docs
+        search_res = self.client.index(self.text_index_2_name).search(q="Cool", search_method=SearchMethods.TENSOR,
+                                                                      searchable_attributes=["title"])
+        self.assertEqual(len(search_res["hits"]), 2)
+        self.assertEqual(search_res["hits"][0]["_id"], "1")
+        self.assertEqual(search_res["hits"][1]["_id"], "2")
+
+        # Lexical search for desc field should only return the matching doc 3
+        search_res = self.client.index(self.text_index_2_name).search(q="Cool", search_method=SearchMethods.LEXICAL,
+                                                                      searchable_attributes=["desc"])
+        self.assertEqual(len(search_res["hits"]), 1)
+        self.assertEqual(search_res["hits"][0]["_id"], "3")
+
+        # Hybrid search on content fields should return matching docs from both batches
+        search_res = self.client.index(self.text_index_2_name).search(
+            q="Solid", search_method="HYBRID",
+            hybrid_parameters={
+                  "retrievalMethod": "disjunction",
+                  "rankingMethod": "rrf",
+                  "alpha": 0.5,
+                  "searchableAttributesLexical": ["content"],
+                  "searchableAttributesTensor": ["title"]
+            }
+        )
+        # lexical returns 2 and 4, tensor returns 1 and 2, after rrf ranking, we return 2 results
+        self.assertEqual(len(search_res["hits"]), 2)
+        self.assertEqual(search_res["hits"][0]["_id"], "2")
+        self.assertEqual(search_res["hits"][1]["_id"], "1")
+
+        # in batch 3, we reindex doc 1 but remove title as a tensor field
+        docs_batch_3 = [
+            {
+                "title": "Cool Document 1",
+                "content": "some extra info",
+                "_id": "1"
+            },
+        ]
+        self.client.index(self.text_index_2_name).add_documents(docs_batch_3, tensor_fields=["content"])
+        # Now we should only able to see doc 2 in the result when tensor search on title
+        search_res = self.client.index(self.text_index_2_name).search(q="Cool", search_method=SearchMethods.TENSOR,
+                                                                      searchable_attributes=["title"])
+        self.assertEqual(len(search_res["hits"]), 1)
+        self.assertEqual(search_res["hits"][0]["_id"], "2")
+
+        # But Lexical search on title can still find doc 1
+        search_res = self.client.index(self.text_index_2_name).search(q="Cool", search_method=SearchMethods.LEXICAL,
+                                                                      searchable_attributes=["title"])
+        self.assertEqual(len(search_res["hits"]), 1)
+        self.assertEqual(search_res["hits"][0]["_id"], "1")

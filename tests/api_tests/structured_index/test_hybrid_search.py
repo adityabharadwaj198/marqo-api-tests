@@ -219,8 +219,7 @@ class TestStructuredHybridSearch(MarqoTestCase):
         """
         Tests that searchable attributes work as expected for all methods
         """
-        # TODO: Add unstructured test when unstructured searchable attributes are supported
-        for index_name in [self.text_index_name]:
+        for index_name in [self.text_index_name, self.unstructured_text_index_name]:
             with self.subTest(index=index_name):
                 self.client.index(index_name).add_documents(
                     self.docs_list,
@@ -275,8 +274,8 @@ class TestStructuredHybridSearch(MarqoTestCase):
                     self.assertEqual(len(hybrid_res["hits"]),
                                         3)  # Only 3 documents have text field 2. Tensor retrieval will get them all.
                     self.assertEqual(hybrid_res["hits"][0]["_id"], "doc12")
-                    self.assertEqual(hybrid_res["hits"][1]["_id"], "doc11")
-                    self.assertEqual(hybrid_res["hits"][2]["_id"], "doc13")
+                    # doc11 and doc13 has score 0, so their order is non-deterministic
+                    self.assertSetEqual({'doc11', 'doc13'}, {hit["_id"] for hit in hybrid_res["hits"][1:]})
 
     def test_hybrid_search_score_modifiers(self):
         """
